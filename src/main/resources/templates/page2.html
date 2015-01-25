@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity3">
+<head>
+    <title>ログインしなくても見れる画面</title>
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta http-equiv="expires" content="0" />
+</head>
+<body>
+
+<div>
+    <h1>説明</h1>
+    <ul>
+        <li>ログインしてなくてもアクセスできる</li>
+        <li>ログインしててもアクセスできる</li>
+        <li>てかなにも制御しない</li>
+    </ul>
+
+    <h1>操作</h1>
+    <ul>
+        <li><a th:href="@{/top}">トップ画面にいく</a>くらいしかないです</li>
+    </ul>
+</div>
+
+</body>
+</html>

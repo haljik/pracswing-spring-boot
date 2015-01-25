@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity3">
+<head>
+    <title>ログインしなきゃ見れない画面</title>
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta http-equiv="expires" content="0" />
+</head>
+<body>
+
+<div>
+    <h1>せつめい</h1>
+    <ul>
+        <li>ログインしなきゃアクセスできない画面です</li>
+        <li>直截アクセスしようとしたら、ログイン画面を表示して、ログイン成功したらここにきます</li>
+        <li>ログアウトしたら、トップ画面にログアウトされた状態でいきます</li>
+    </ul>
+
+    <h1>操作</h1>
+    <ul>
+        <li><a th:href="@{/top}">ログインしたままトップに行くのです</a></li>
+        <li>
+            <form th:action="@{/logout}" method="post">
+                <input type="submit" value="ログアウト"/>
+            </form>
+        </li>
+    </ul>
+</div>
+
+</body>
+</html>
