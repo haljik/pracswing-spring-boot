@@ -44,7 +44,7 @@
             ログインに失敗したよ
         </div>
         <form th:action="@{/login}" method="post">
-            <input type="hidden" name="from" value="top"/>
+            <input type="hidden" name="loginPage" value="/top"/>
             <div><label> User Name : <input type="text" name="username" value="user"/> </label></div>
             <div><label> Password: <input type="password" name="password" value="pass"/> </label></div>
             <div><input type="submit" value="ログイン"/></div>
