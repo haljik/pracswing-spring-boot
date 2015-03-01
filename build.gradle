@@ -3,7 +3,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.2.1.RELEASE")
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.2.2.RELEASE")
     }
 }
 
@@ -24,6 +24,8 @@ dependencies {
     compile "org.springframework.boot:spring-boot-starter-thymeleaf"
     compile "org.springframework.boot:spring-boot-starter-security"
     compile 'org.thymeleaf.extras:thymeleaf-extras-springsecurity3'
+
+    compile 'org.springframework.security:spring-security-cas'
 
     testCompile "junit:junit"
     testCompile "org.springframework.boot:spring-boot-starter-test"

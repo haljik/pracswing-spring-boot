@@ -14,9 +14,6 @@
     <ul>
         <li><a th:href="@{/}">ルートにアクセス</a>したら、ここにきます</li>
         <li>ログインしてなくてもアクセスできますね</li>
-        <li>この画面にはログインフォームがあります</li>
-        <li>この画面でログインに成功したら、トップ画面（この画面）でログインした状態になります</li>
-        <li>この画面でログインに失敗したら、この画面にエラーメッセージがでます</li>
         <li>どこかの画面でログアウトしたら、ログアウトした状態のトップ画面（この画面）にきます</li>
         <li sec:authorize="isAuthenticated()" style="color:blue">今はログインしています</li>
         <li sec:authorize="!isAuthenticated()" style="color:red">今はログインしていません</li>
@@ -26,7 +23,6 @@
 <div>
     <h1>操作</h1>
     <ul>
-        <li><a th:href="@{/login}">ログイン画面へ</a></li>
         <li><a th:href="@{/page1}">ログインしなきゃ見れないページ</a></li>
         <li><a th:href="@{/page2}">ログインしなくても見れるページ</a></li>
     </ul>
@@ -40,15 +36,7 @@
     </div>
     <div sec:authorize="!isAuthenticated()">
         <h2>ログインしてなかったら表示するもの</h2>
-        <div th:if="${param.error}" style="color:red">
-            ログインに失敗したよ
-        </div>
-        <form th:action="@{/login}" method="post">
-            <input type="hidden" name="loginPage" value="/top"/>
-            <div><label> User Name : <input type="text" name="username" value="user"/> </label></div>
-            <div><label> Password: <input type="password" name="password" value="pass"/> </label></div>
-            <div><input type="submit" value="ログイン"/></div>
-        </form>
+        ログインしてないよ。
     </div>
 </div>
 
