@@ -7,13 +7,15 @@ Spring Boot + CAS Authentication
 
 ## 使いかた
 
-* sslのキーをresourcesのしたに作る。
+* （先にrun-cas-jetty を起動しとく）
+* sslのキーを resources に作る。
   * `keytool -genkeypair -dname "cn=localhost" -keyalg RSA -keystore resources/spring-boot-key.jks -keypass springboot -storepass springboot`
-  * 他に作るなら application.yml を変える。
-* LocalCAS.crt さんの入ったcacertsを作る。
+  * 場所変えるなら application.yml で。
+* LocalCAS.crt の入った cacerts を作る。
   * `keytool -importcert -trustcacerts -alias localcas -keystore ./cacerts -file ..(run-cas-jettyのとこ)../LocalCAS.crt -storepass localcas -noprompt`
 * Application.java を実行する時のVMオプションでcacertsを指定する。
   * `-Djavax.net.ssl.trustStore=(プロジェクトへの絶対パス)/cacerts -Djavax.net.ssl.trustStorePassword=localcas`
+* https://localhost:8443/ を見る。
 
 とりあえず動く。はず。
 
