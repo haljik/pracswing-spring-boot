@@ -23,8 +23,10 @@ dependencies {
     compile "org.springframework.boot:spring-boot-starter-web"
     compile "org.springframework.boot:spring-boot-starter-thymeleaf"
     compile "org.springframework.boot:spring-boot-starter-security"
-    compile "org.springframework.boot:spring-boot-starter-actuator"
     compile 'org.thymeleaf.extras:thymeleaf-extras-springsecurity3'
+
+    compile "org.springframework.boot:spring-boot-starter-actuator"
+    compile 'de.codecentric:spring-boot-starter-admin-client:1.1.2'
 
     testCompile "junit:junit"
     testCompile "org.springframework.boot:spring-boot-starter-test"

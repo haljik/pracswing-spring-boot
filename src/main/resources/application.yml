@@ -1,0 +1,17 @@
+logging.file: hoge.log
+
+info:
+  version: 0.0.1
+  hoge: fugapiyo
+
+spring:
+  application:
+    name: hoge-application-name
+  boot:
+    admin:
+      url: http://localhost:8081
+      period: 30000
+
+management:
+  context-path: /actuator-path
+  security.enabled: false
