@@ -52,7 +52,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .permitAll();
     }
 
-    //先勝ち設定↓
+//先勝ち設定↓
     //セッションイベントの発行をリスニング
     @Bean
     public static ServletListenerRegistrationBean httpSessionEventPublisher() {
@@ -74,6 +74,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
             @Override
             public void onAuthentication(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
                 System.out.println("onAuthentication:" + authentication.getPrincipal());
+                /* 認証後のユーザをRegistryに追加する */
                 sessionRegistry.registerNewSession(request.getSession().getId(), authentication.getPrincipal());
                 super.onAuthentication(authentication, request, response);
             }
