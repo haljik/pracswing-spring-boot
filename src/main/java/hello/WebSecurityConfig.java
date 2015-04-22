@@ -2,6 +2,7 @@ package hello;
 
 import org.jasig.cas.client.validation.Cas20ServiceTicketValidator;
 import org.jasig.cas.client.validation.TicketValidator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.embedded.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,7 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.servlet.configuration.EnableWebMvcSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
@@ -21,44 +23,73 @@ import org.springframework.security.core.userdetails.AuthenticationUserDetailsSe
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.Collections;
 
 @Configuration
 @EnableWebMvcSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
+    @Autowired
+    CasAuthenticationFilter casFilter;
+
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.addFilter(casFilter());
+        http.addFilter(casFilter);
         http.exceptionHandling().authenticationEntryPoint(casEntryPoint());
-
         http.authorizeRequests()
                 .antMatchers("/", "/top", "/page2").permitAll()
                 .anyRequest().authenticated()
-            .and()
-            .logout()
+                .and()
+                .logout()
                 .logoutSuccessUrl("/top")
                 .permitAll();
-//先勝ち設定 ↓
-        http.sessionManagement()
-                .maximumSessions(1) //1ユーザごとの最大セッション数
-                .expiredUrl("/top") //セッション切れおよび、最大セッション数を超えた場合のリダイレクト先URL
-                .maxSessionsPreventsLogin(true) //最大数を超えてのログインを許さない
-                .sessionRegistry(sessionRegistry());
+    }
+
+    //先勝ち設定↓
+    //セッションイベントの発行をリスニング
+    @Bean
+    public static ServletListenerRegistrationBean httpSessionEventPublisher() {
+        return new ServletListenerRegistrationBean(new HttpSessionEventPublisher());
     }
 
     // work around https://jira.spring.io/browse/SEC-2855
+    // アプリケーションリスナーとして動き、セッション削除イベントに反応してRegistryから削除している。
+    // 先勝ち設定の場合は、運用で該当ユーザのセッションを削除可能とする仕組みが必要となりそう。
+    // cas側のtiketを無効化した段階でセッションが削除できれば良いのだが…
     @Bean
     public SessionRegistry sessionRegistry() {
         return new SessionRegistryImpl();
     }
 
-    //セッションイベントの発行をリスニング
     @Bean
-    public static ServletListenerRegistrationBean httpSessionEventPublisher() {
-        return new ServletListenerRegistrationBean(new HttpSessionEventPublisher());
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy(SessionRegistry sessionRegistry) {
+        ConcurrentSessionControlAuthenticationStrategy strategy = new ConcurrentSessionControlAuthenticationStrategy(sessionRegistry) {
+            @Override
+            public void onAuthentication(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+                System.out.println("onAuthentication:" + authentication.getPrincipal());
+                sessionRegistry.registerNewSession(request.getSession().getId(), authentication.getPrincipal());
+                super.onAuthentication(authentication, request, response);
+            }
+        };
+        strategy.setMaximumSessions(1);
+        strategy.setExceptionIfMaximumExceeded(true);
+        System.out.println("strategy:" + strategy);
+        return strategy;
+    }
+
+    @Bean
+    public CasAuthenticationFilter casFilter(SessionAuthenticationStrategy strategy) throws Exception {
+        CasAuthenticationFilter filter = new CasAuthenticationFilter();
+        filter.setAuthenticationManager(authenticationManager());
+        filter.setSessionAuthenticationStrategy(strategy);
+        return filter;
     }
 //先勝ち設定 ↑
 
@@ -75,12 +106,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         return serviceProperties;
     }
 
-    @Bean
-    public CasAuthenticationFilter casFilter() throws Exception {
-        CasAuthenticationFilter filter = new CasAuthenticationFilter();
-        filter.setAuthenticationManager(authenticationManager());
-        return filter;
-    }
 
     @Bean
     public CasAuthenticationEntryPoint casEntryPoint() {
@@ -102,7 +127,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public TicketValidator ticketValidator() {
-        return new Cas20ServiceTicketValidator("https://localhost:9443");
+        final Cas20ServiceTicketValidator cas20ServiceTicketValidator = new Cas20ServiceTicketValidator("https://localhost:9443");
+        return cas20ServiceTicketValidator;
     }
 
     @Bean
