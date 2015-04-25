@@ -15,7 +15,6 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.servlet.configuration.EnableWebMvcSecurity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
@@ -23,12 +22,8 @@ import org.springframework.security.core.userdetails.AuthenticationUserDetailsSe
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.util.Collections;
 
 @Configuration
@@ -38,6 +33,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     CasAuthenticationFilter casFilter;
 
+    @Autowired
+    SessionRegistry registry;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -50,9 +47,17 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .logout()
                 .logoutSuccessUrl("/top")
                 .permitAll();
+
+        //SessionManagementFilterを有効にする。
+        http.sessionManagement()
+                .sessionAuthenticationErrorUrl("/top?allowableSessionsExceeded")
+                .maximumSessions(1)
+                .maxSessionsPreventsLogin(true) //falseで後勝ちとなる
+                .expiredUrl("/top?sessionExpired") //セッション無効時のURL指定
+                .sessionRegistry(registry);
     }
 
-//先勝ち設定↓
+    //先勝ち設定↓
     //セッションイベントの発行をリスニング
     @Bean
     public static ServletListenerRegistrationBean httpSessionEventPublisher() {
@@ -69,27 +74,14 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public SessionAuthenticationStrategy sessionAuthenticationStrategy(SessionRegistry sessionRegistry) {
-        ConcurrentSessionControlAuthenticationStrategy strategy = new ConcurrentSessionControlAuthenticationStrategy(sessionRegistry) {
-            @Override
-            public void onAuthentication(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
-                System.out.println("onAuthentication:" + authentication.getPrincipal());
-                /* 認証後のユーザをRegistryに追加する */
-                sessionRegistry.registerNewSession(request.getSession().getId(), authentication.getPrincipal());
-                super.onAuthentication(authentication, request, response);
-            }
-        };
-        strategy.setMaximumSessions(1);
-        strategy.setExceptionIfMaximumExceeded(true);
-        System.out.println("strategy:" + strategy);
-        return strategy;
-    }
-
-    @Bean
-    public CasAuthenticationFilter casFilter(SessionAuthenticationStrategy strategy) throws Exception {
+    public CasAuthenticationFilter casFilter(SessionRegistry registry) throws Exception {
         CasAuthenticationFilter filter = new CasAuthenticationFilter();
-        filter.setAuthenticationManager(authenticationManager());
-        filter.setSessionAuthenticationStrategy(strategy);
+        //認証成功時にSessionRegistryにセッションを登録することでHttpSecurityのsessionManagement()で設定される
+        //SessionManagementFilterでユーザごとのセッション数を検出可能とする。
+        filter.setAuthenticationSuccessHandler(
+                (request, response, authentication) ->
+                        registry.registerNewSession(request.getSession().getId(), authentication.getPrincipal())
+        );
         return filter;
     }
 //先勝ち設定 ↑
