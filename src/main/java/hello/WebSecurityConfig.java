@@ -1,5 +1,6 @@
 package hello;
 
+import org.jasig.cas.client.session.SingleSignOutFilter;
 import org.jasig.cas.client.validation.Cas20ServiceTicketValidator;
 import org.jasig.cas.client.validation.TicketValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,11 +26,14 @@ import org.springframework.security.core.userdetails.AuthenticationUserDetailsSe
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationException;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.session.ConcurrentSessionFilter;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.security.web.util.AntPathRequestMatcher;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -49,6 +53,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        http.addFilterBefore(requestLogoutFilter(), LogoutFilter.class);
+        http.addFilterBefore(singleSignOutFilter(), ConcurrentSessionFilter.class);
         http.addFilter(concurrentSessionFilter);
         http.addFilter(casFilter);
         http.exceptionHandling().authenticationEntryPoint(casEntryPoint());
@@ -118,6 +124,21 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         return filter;
     }
 //後勝ち・先勝ち設定 ↑
+
+    @Bean
+    public LogoutFilter requestLogoutFilter() {
+        SecurityContextLogoutHandler handler = new SecurityContextLogoutHandler();
+        handler.setClearAuthentication(true);
+        handler.setInvalidateHttpSession(true);
+        final LogoutFilter logoutFilter = new LogoutFilter("https://localhost:9443/cas/logout", handler);
+        logoutFilter.setLogoutRequestMatcher(new AntPathRequestMatcher("/logout"));
+        return logoutFilter;
+    }
+
+    @Bean
+    public SingleSignOutFilter singleSignOutFilter() {
+        return new SingleSignOutFilter();
+    }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
