@@ -15,16 +15,27 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.servlet.configuration.EnableWebMvcSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.AuthenticationUserDetailsService;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.session.ConcurrentSessionFilter;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 @Configuration
 @EnableWebMvcSecurity
@@ -34,10 +45,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     CasAuthenticationFilter casFilter;
 
     @Autowired
-    SessionRegistry registry;
+    ConcurrentSessionFilter concurrentSessionFilter;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        http.addFilter(concurrentSessionFilter);
         http.addFilter(casFilter);
         http.exceptionHandling().authenticationEntryPoint(casEntryPoint());
         http.authorizeRequests()
@@ -47,15 +59,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .logout()
                 .logoutSuccessUrl("/top")
                 .permitAll();
-
-        //SessionManagementFilterを有効にする。
-        http.sessionManagement()
-                .sessionAuthenticationErrorUrl("/top?allowableSessionsExceeded")
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(true) //falseで後勝ちとなる
-                .expiredUrl("/top?sessionExpired") //セッション無効時のURL指定
-                .sessionRegistry(registry);
     }
+
 
     //先勝ち設定↓
     //セッションイベントの発行をリスニング
@@ -67,24 +72,52 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     // work around https://jira.spring.io/browse/SEC-2855
     // アプリケーションリスナーとして動き、セッション削除イベントに反応してRegistryから削除している。
     // 先勝ち設定の場合は、運用で該当ユーザのセッションを削除可能とする仕組みが必要となりそう。
-    // cas側のtiketを無効化した段階でセッションが削除できれば良いのだが…
     @Bean
     public SessionRegistry sessionRegistry() {
         return new SessionRegistryImpl();
     }
 
+    // SessionAuthenticationStrategyのallowablesessionExceededで無効化したセッションが
+    // ConcurrentSessionFilterで破棄される。
+    // ここで先勝ち、後勝ちの制御ができる。
     @Bean
-    public CasAuthenticationFilter casFilter(SessionRegistry registry) throws Exception {
-        CasAuthenticationFilter filter = new CasAuthenticationFilter();
-        //認証成功時にSessionRegistryにセッションを登録することでHttpSecurityのsessionManagement()で設定される
-        //SessionManagementFilterでユーザごとのセッション数を検出可能とする。
-        filter.setAuthenticationSuccessHandler(
-                (request, response, authentication) ->
-                        registry.registerNewSession(request.getSession().getId(), authentication.getPrincipal())
-        );
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy(SessionRegistry registry) {
+        ConcurrentSessionControlAuthenticationStrategy strategy = new ConcurrentSessionControlAuthenticationStrategy(registry) {
+            @Override
+            protected void allowableSessionsExceeded(List<SessionInformation> sessions, int allowableSessions, SessionRegistry registry) throws SessionAuthenticationException {
+                SessionInformation expireTarget = sessions.stream()
+                        .sorted((origin, other) -> -1 * origin.getLastRequest().compareTo(other.getLastRequest()))//-1をかけて反転させ先勝ち/なにもしないと後勝ち
+                        .findFirst().get();
+                expireTarget.expireNow();
+            }
+        };
+        strategy.setMaximumSessions(1);
+        return strategy;
+    }
+
+    @Bean
+    public ConcurrentSessionFilter concurrentSessionFilter(SessionRegistry registry) {
+        return new ConcurrentSessionFilter(registry, "/top?expired");//先勝ち、後勝ち両方で無効化されたセッションIDでアクセスした場合のリダイレクト先を指定
+    }
+
+    @Bean
+    public CasAuthenticationFilter casFilter(SessionRegistry registry, SessionAuthenticationStrategy strategy) throws Exception {
+        CasAuthenticationFilter filter = new CasAuthenticationFilter() {
+            @Override
+            public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException, IOException {
+                final Authentication authentication = super.attemptAuthentication(request, response);
+                if (authentication != null) {
+                    //On Authentication Completed
+                    registry.registerNewSession(request.getSession().getId(), authentication.getPrincipal());
+                }
+                return authentication;
+            }
+        };
+        filter.setSessionAuthenticationStrategy(strategy);
+        filter.setAuthenticationManager(authenticationManager());
         return filter;
     }
-//先勝ち設定 ↑
+//後勝ち・先勝ち設定 ↑
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
